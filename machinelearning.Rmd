@@ -1,0 +1,75 @@
+---
+title: "Human Activity Recognition"
+author: "Roman Braun"
+date: "November 20th, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(caret)
+library(rattle)
+```
+
+## Data source
+Data was obtained from:  http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.
+
+## Exploratory analysis
+Dataset is opened and analysed with glimpse() (not run to save space in this document) to get an overview. Multiple NA strings are indentified and specified for the actual opening of the data through na.strings=c("NA", "", "#DIV0!").
+```{r}
+data <- read.csv("pml-training.csv")
+dim(data)
+#glimpse()
+```
+## Opening training data and removing columns with NA
+Removing columns with empty fields and columns 1 to 7 that contain information about the person performing the exercise.
+```{r loading and processing}
+data <- read.csv("pml-training.csv", na.strings = c("NA", "", "#DIV0!"))
+newdata <- data[ , colSums(is.na(data)) == 0]
+newdata <- newdata[,-c(1:7)]
+dim(newdata)
+```
+
+## Splitting of training data into train and validation datasets
+Dataset is split into 80% for training and 20% for validation.
+```{r}
+set.seed(123)
+intrain <- createDataPartition(y=newdata$classe, p=0.8, list=FALSE)
+train_data <- newdata[intrain,]
+dim(train_data)
+valid_data <- newdata[-intrain,]
+dim(valid_data)
+```
+
+## Training using rpart and validation
+Training using the rpart algorithm. Validation to check for accuracy using a confusion matrix.
+```{r}
+modFitrpart<- train(classe ~., method="rpart", data=train_data)
+predict_rpart <- predict(modFitrpart, newdata=valid_data)
+matrix <- confusionMatrix(predict_rpart, as.factor(valid_data$classe))
+matrix
+print(modFitrpart$finalModel)
+
+```
+This model returns alow accuracy. We can see from the decision tree that not all outcomes are accounted for.
+
+## Training using random forrests
+Second training, this time using random forrests.
+```{r random forrest}
+modFitrf<- train(classe ~., method="rf", data=train_data, prox=TRUE)
+predict_rf <- predict(modFitrf, newdata=valid_data)
+matrix <- confusionMatrix(predict_rf, as.factor(valid_data$classe))
+matrix
+```
+Fantastic! Random forrests results in >99% accuracy.
+
+## Prediction of test dataset
+Let's run the random forrest prediction on the test dataset.
+```{r prediction}
+testdata <- read.csv("pml-testing.csv", na.strings = c("NA", "", "#DIV0!"))
+newtestdata <- testdata[ , colSums(is.na(data)) == 0]
+newtestdata <- newtestdata[,-c(1:7)]
+predict_test_rf <- predict(modFitrf, newdata=newtestdata)
+predict_test_rf
+```
